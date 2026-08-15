@@ -267,9 +267,20 @@ class FakturamaApp:
         self.c.set_text(["Street"], address.street)
         if address.district:
             self.c.set_text(["District"], address.district)
-        self.c.set_text(["ZIP", "Postal Code", "Postcode"], address.zip)
-        self.c.set_text(["City"], address.city)
-        self.c.set_text(["Country"], address.country)
+        self.c.set_text_on_row(
+            ["ZIP - City", "ZIP City"],
+            0,
+            address.zip,
+        )
+        self.c.set_text_on_row(
+            ["ZIP - City", "ZIP City"],
+            1,
+            address.city,
+        )
+        # country isn't text
+        self.c.choose(["Country"], address.country)
+
+
         if address.email:
             self.c.set_text(["E-Mail", "Email"], address.email)
         if address.telephone:
@@ -358,9 +369,18 @@ class FakturamaApp:
         # Customer ID and Salutation are intentionally left at Fakturama defaults.
         self.c.set_text(["Company"], debtor.company)
         if debtor.first_name:
-            self.c.set_text(["First Name", "Firstname"], debtor.first_name)
+            self.c.set_text_on_row(
+                ["First Name Last Name"],
+                0,
+                debtor.first_name,
+            )
         if debtor.last_name:
-            self.c.set_text(["Last Name", "Name"], debtor.last_name)
+            self.c.set_text_on_row(
+                ["First Name Last Name"],
+                1,
+                debtor.last_name,
+            )
+
 
         self.g.click_text(["Addresses"], exact=False)
         self._fill_address(debtor.billing)
@@ -369,7 +389,8 @@ class FakturamaApp:
 
         if not debtor.same_delivery_address:
             # Figure 2's address table uses the green + to add another address.
-            self.g.click_green_plus_near(["Main address", "Addresses"], radius=500)
+            self.g.click_text(["+"], exact=True)
+
             time.sleep(0.4)
             self._fill_address(debtor.delivery_address)
             self._set_address_types(delivery=True, invoice=False)

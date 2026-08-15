@@ -661,7 +661,107 @@ class Controls:
         button = candidates[0][1]
 
         button.click_input()
-    
+
+
+    def field_on_row(
+        self,
+        labels: Sequence[str],
+        index: int,
+        *,
+        control_type: str = "Edit",
+    ) -> BaseWrapper:
+
+        # Prefer an exact label such as "First Name Last Name"
+        label_boxes = (
+            self.g.visual_boxes(labels, exact=True)
+            or self.g.visual_boxes(labels, exact=False)
+        )
+
+        if len(label_boxes) != 1:
+            raise ManualReviewRequired(
+                f"Could not uniquely locate row label {list(labels)}; "
+                f"matches={len(label_boxes)}"
+            )
+
+        label = label_boxes[0]
+        candidates = []
+
+        for candidate in self.g.descendants():
+
+            if norm(candidate.control_type) != norm(control_type):
+                continue
+
+            try:
+                wrapper = candidate.wrapper
+
+                if not wrapper.is_visible() or not wrapper.is_enabled():
+                    continue
+
+                rect = wrapper.rectangle()
+
+                cy = (rect.top + rect.bottom) / 2
+
+                # Must be on the same horizontal row
+                same_row = abs(cy - label.cy) <= 20
+
+                # Must begin to the right of the row label
+                right_of_label = rect.left >= label.right - 5
+
+                if same_row and right_of_label:
+                    candidates.append(
+                        (rect.left, wrapper)
+                    )
+
+            except Exception:
+                continue
+
+        candidates.sort(
+            key=lambda item: item[0]
+        )
+
+        if index >= len(candidates):
+            raise ManualReviewRequired(
+                f"Expected field index {index} on row {list(labels)}, "
+                f"but found only {len(candidates)} fields"
+            )
+
+        return candidates[index][1]
+
+    def set_text_on_row(
+        self,
+        labels: Sequence[str],
+        index: int,
+        value: str,
+        *,
+        verify: bool = True,
+    ) -> None:
+
+        ctrl = self.field_on_row(
+            labels,
+            index,
+            control_type="Edit",
+        )
+
+        try:
+            ctrl.set_edit_text(str(value))
+        except Exception:
+            ctrl.click_input()
+            keyboard.send_keys("^a{BACKSPACE}")
+            keyboard.send_keys(
+                str(value),
+                with_spaces=True,
+            )
+
+        if verify:
+            actual = self._raw_value(ctrl)
+
+            if norm(str(value)) not in norm(actual):
+                raise VerificationError(
+                    f"Row {labels[0]} field[{index}] "
+                    f"expected={value!r}, actual={actual!r}"
+                )
+
+
     def set_date(self, labels: Sequence[str], expected: date) -> None:
         ctrl = self.field(labels, ("Edit", "ComboBox"))
         assert ctrl is not None
