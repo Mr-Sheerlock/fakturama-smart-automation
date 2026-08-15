@@ -136,27 +136,72 @@ class FakturamaApp:
         return all(norm(value) in haystack for value in required if value)
 
     def _find_exact_rows(self, grounder: Grounder, required: list[str]):
-        matches = []
-        for wrapper, values in self._uia_rows(grounder):
-            joined = " | ".join(values)
-            if self._contains_required(joined, required):
-                matches.append(("uia", wrapper, joined))
-        if matches:
-            return matches
+        lines = grounder.ocr_lines()
 
-        ocr_matches = [
-            line for line in grounder.ocr_lines() if self._contains_required(line.text, required)
+        if not lines:
+            return []
+
+        # Dynamically determine the table/results area.
+        #
+        # Search/filter controls are above the result table.
+        # OK/Cancel controls are below it.
+        search_lines = [
+            line
+            for line in lines
+            if norm(line.text).strip(":") == "search"
         ]
-        # In Data views the selected record is often repeated once in the editor and once
-        # in the table. If UIA does not expose DataItems, prefer a clearly wider OCR row
-        # (the table row contains several columns). Do not collapse genuinely similar rows.
-        if len(ocr_matches) > 1:
-            ranked = sorted(ocr_matches, key=lambda line: line.right - line.left, reverse=True)
+
+        action_lines = [
+            line
+            for line in lines
+            if norm(line.text) in {"ok", "cancel"}
+        ]
+
+        top_boundary = None
+        bottom_boundary = None
+
+        if search_lines:
+            # Result rows should be below the Search label.
+            top_boundary = max(line.bottom for line in search_lines)
+
+        if action_lines:
+            # Result rows should be above OK / Cancel.
+            bottom_boundary = min(line.top for line in action_lines)
+
+        table_lines = []
+
+        for line in lines:
+            if top_boundary is not None and line.cy <= top_boundary:
+                continue
+
+            if bottom_boundary is not None and line.cy >= bottom_boundary:
+                continue
+
+            table_lines.append(line)
+
+        matches = [
+            line
+            for line in table_lines
+            if self._contains_required(line.text, required)
+        ]
+
+        # Occasionally OCR may produce the same visible row twice.
+        # Prefer the clearly wider version because a real table row
+        # normally contains several columns.
+        if len(matches) > 1:
+            ranked = sorted(
+                matches,
+                key=lambda line: line.right - line.left,
+                reverse=True,
+            )
+
             widest = ranked[0].right - ranked[0].left
             second = ranked[1].right - ranked[1].left
+
             if widest >= second * 1.25:
-                ocr_matches = [ranked[0]]
-        return [("ocr", line, line.text) for line in ocr_matches]
+                matches = [ranked[0]]
+
+        return matches
 
     def _select_exact_dialog_row(
         self,
@@ -164,49 +209,82 @@ class FakturamaApp:
         required: list[str],
         description: str,
     ) -> bool:
-        matches = self._find_exact_rows(dialog, required)
+
+        matches = self._find_exact_rows(
+            dialog,
+            required,
+        )
+
         if len(matches) == 0:
             return False
+
         if len(matches) > 1:
             dialog.screenshot("ambiguous_selector")
-            raise ManualReviewRequired(
-                f"Multiple selector rows matched {description}: {[m[2] for m in matches]}"
-            )
-        kind, target, _ = matches[0]
-        if kind == "uia":
-            target.click_input()
-        else:
-            rect = dialog.window.rectangle()
-            dialog_line = target
-            from pywinauto import mouse
 
-            mouse.click(coords=(int(rect.left + dialog_line.cx), int(rect.top + dialog_line.cy)))
-        dialog.click_text(["OK"], exact=True)
+            raise ManualReviewRequired(
+                f"Multiple selector rows matched {description}: "
+                f"{[line.text for line in matches]}"
+            )
+
+        line = matches[0]
+
+        rect = dialog.window.rectangle()
+
+        from pywinauto import mouse
+
+        mouse.click(
+            coords=(
+                int(rect.left + line.cx),
+                int(rect.top + line.cy),
+            )
+        )
+
+        dialog.click_text(
+            ["OK"],
+            exact=True,
+        )
+
         return True
+
 
     def _search_dialog(self, dialog: Grounder, query: str) -> None:
         controls = Controls(dialog)
+
         try:
-            controls.set_text(["Search", "Filter", "Find"], query)
+            controls.set_text(
+                ["Search", "Filter", "Find"],
+                query,
+            )
+
         except ManualReviewRequired:
             edits = [
                 candidate.wrapper
                 for candidate in dialog.descendants()
                 if norm(candidate.control_type) == "edit"
             ]
+
             if len(edits) != 1:
                 dialog.screenshot("search_field_ambiguous")
-                raise ManualReviewRequired("Could not uniquely locate selector Search field")
+
+                raise ManualReviewRequired(
+                    "Could not uniquely locate selector Search field"
+                )
+
             try:
                 edits[0].set_edit_text(query)
+
             except Exception:
                 edits[0].click_input()
+
                 from pywinauto import keyboard
 
                 keyboard.send_keys("^a{BACKSPACE}")
-                keyboard.send_keys(query, with_spaces=True)
-        dialog.stable_text_snapshot()
+                keyboard.send_keys(
+                    query,
+                    with_spaces=True,
+                )
 
+        dialog.stable_text_snapshot()
     # ---------- New Order ----------
 
     def open_new_order(self, order: OrderInput) -> None:
