@@ -335,8 +335,9 @@ class FakturamaApp:
         )
 
         # Clicking somewhere outside normally closes the popup.
+        # if (not delivery):
         self.g.click_text(
-            ["Main address"],
+            ["address type"],
             exact=False,
         )
 
@@ -395,6 +396,7 @@ class FakturamaApp:
             self._fill_address(debtor.delivery_address)
             self._set_address_types(delivery=True, invoice=False)
             self.checkpoint("debtor-distinct-delivery-address")
+
 
         self.g.click_text(["Miscellaneous", "Misc"], exact=False)
         if debtor.alias:
