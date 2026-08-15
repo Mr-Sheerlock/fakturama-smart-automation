@@ -38,6 +38,7 @@ class FakturamaApp:
         return Controls(self.g)
 
     def checkpoint(self, name: str) -> None:
+        print(f"Checkpoint: {name}")
         self.g.screenshot(name)
 
     # ---------- Runtime editor/navigation helpers ----------
@@ -211,24 +212,29 @@ class FakturamaApp:
     def open_new_order(self, order: OrderInput) -> None:
         before = self._tab_names()
         self.g.click_text(["Create: New Order"], exact=True)
-        self.g.wait_until_text("Cust.Ref", timeout=12)
-        self._remember_new_tab(before, "order")
+        # self.g.wait_until_text("Cust.Ref", timeout=12)
+        # self._remember_new_tab(before, "order")
 
-        # Leave Fakturama's proposed document number unchanged, but capture it for verification.
-        self.order_number = self.c.read_text(["No.", "No", "Number"], optional=True)
-        self.c.set_date(["Date", "Order Date"], order.order_date)
-        self.c.set_text(["Cust.Ref.", "Cust.Ref", "Customer Reference"], order.external_reference)
-        self.c.choose_near(["Date"], "Net")
-        self.c.choose(["VAT", "VAT mode"], "With VAT")
+        # # Leave Fakturama's proposed document number unchanged, but capture it for verification.
+        # self.order_number = self.c.read_text(["No.", "No", "Number"], optional=True)
+        # self.c.set_date(["Date", "Order Date"], order.order_date)
+        # self.c.set_text(["Cust.Ref.", "Cust.Ref", "Customer Reference"], order.external_reference)
+        # self.c.choose_near(["Date"], "Net")
+        # self.c.choose(["VAT", "VAT mode"], "With VAT")
         self.checkpoint("01-new-order")
 
     # ---------- Debtor ----------
 
     def _open_address_selector(self) -> Grounder:
         try:
-            self.g.click_text(
-                ["Select the address", "Select address", "Select existing contact"], exact=False
-            )
+            
+            # self.g.click(
+            #     ["AddressesImage", "Select address"], exact=False
+            # )
+            self.g.click_topmost_button_near(
+                    ["Addresses"],
+                    radius=120
+                )
         except ManualReviewRequired:
             # Figure 1 shows the required existing-contact icon as the upper icon beside
             # Addresses; the lower green + is explicitly not the selector.
@@ -237,6 +243,7 @@ class FakturamaApp:
 
     def ensure_debtor(self, debtor: Debtor) -> None:
         dialog = self._open_address_selector()
+        print("Searching for existing Debtor...")
         self._search_dialog(dialog, debtor.company or debtor.last_name)
         required = [value for value in debtor.selector_required_values() if value]
         if not self._select_exact_dialog_row(dialog, required, f"Debtor {required}"):
@@ -268,6 +275,80 @@ class FakturamaApp:
         if address.telephone:
             self.c.set_text(["Telephone", "Phone", "Tel"], address.telephone)
 
+
+    def _set_address_types(
+        self,
+        *,
+        invoice: bool,
+        delivery: bool,
+        ) -> None:
+        expected = set()
+
+        if invoice:
+            expected.add("invoice address")
+
+        if delivery:
+            expected.add("delivery address")
+
+        # Read the persistent "address type" field first.
+        current_text = self.c.read_text(
+            ["address type"],
+            control_types=("Edit",),
+            optional=True,
+        )
+
+        current = {
+            part.strip().lower()
+            for part in current_text.split(",")
+            if part.strip()
+        }
+
+        # Already correct -> don't touch anything.
+        if current == expected:
+            return
+
+        # Open the address-type selector.
+        self.c.click_field_button(["address type"])
+
+        time.sleep(0.2)
+
+        # These should now be visible in the opened selector.
+        self.c.set_checkbox(
+            ["Invoice address"],
+            invoice,
+        )
+
+        self.c.set_checkbox(
+            ["Delivery address"],
+            delivery,
+        )
+
+        # Clicking somewhere outside normally closes the popup.
+        self.g.click_text(
+            ["Main address"],
+            exact=False,
+        )
+
+        time.sleep(0.2)
+
+        # Verify persisted value in address type Edit.
+        actual_text = self.c.read_text(
+            ["address type"],
+            control_types=("Edit",),
+        )
+
+        actual = {
+            part.strip().lower()
+            for part in actual_text.split(",")
+            if part.strip()
+        }
+
+        if actual != expected:
+            raise VerificationError(
+                f"Address types expected={sorted(expected)}, "
+                f"actual={sorted(actual)}"
+            )
+
     def _create_debtor(self, debtor: Debtor) -> None:
         before = self._tab_names()
         self.g.click_text(["New Contact", "New contact"], exact=False)
@@ -283,16 +364,15 @@ class FakturamaApp:
 
         self.g.click_text(["Addresses"], exact=False)
         self._fill_address(debtor.billing)
-        self.c.set_checkbox(["Invoice address"], True)
-        self.c.set_checkbox(["Delivery address"], debtor.same_delivery_address)
+
+        self._set_address_types(delivery=debtor.same_delivery_address, invoice=True)
 
         if not debtor.same_delivery_address:
             # Figure 2's address table uses the green + to add another address.
             self.g.click_green_plus_near(["Main address", "Addresses"], radius=500)
             time.sleep(0.4)
             self._fill_address(debtor.delivery_address)
-            self.c.set_checkbox(["Invoice address"], False)
-            self.c.set_checkbox(["Delivery address"], True)
+            self._set_address_types(delivery=True, invoice=False)
             self.checkpoint("debtor-distinct-delivery-address")
 
         self.g.click_text(["Miscellaneous", "Misc"], exact=False)

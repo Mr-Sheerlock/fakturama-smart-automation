@@ -239,7 +239,7 @@ class Grounder:
     def click_text(self, names: Sequence[str], *, exact: bool = False) -> None:
         control = self.find_uia(
             names,
-            control_types=["Button", "Hyperlink", "MenuItem", "Text", "TreeItem", "TabItem"],
+            control_types=["Button", "Hyperlink", "MenuItem", "Text", "TreeItem", "TabItem","Image"],
             exact=exact,
         )
         if control is not None:
@@ -286,33 +286,79 @@ class Grounder:
         target = scored[0][1]
         mouse.click(coords=(int(target.cx), int(target.cy)))
 
-    def click_topmost_button_near(self, anchor_names: Sequence[str], *, radius: float = 240) -> None:
+    def click_topmost_button_near(
+        self,
+        anchor_names: Sequence[str],
+        *,
+        radius: float = 240
+    ) -> None:
+
         anchors = self.visual_boxes(anchor_names, exact=False)
+
         if not anchors:
-            raise ManualReviewRequired(f"Could not locate anchor for icon button: {anchor_names}")
+            raise ManualReviewRequired(
+                f"Could not locate anchor for icon control: {anchor_names}"
+            )
+
         anchor = anchors[0]
         candidates = []
+
         for candidate in self.descendants():
-            if norm(candidate.control_type) != "button":
+
+            # candidate is our Candidate dataclass
+            if candidate.control_type not in {"Button", "Image"}:
                 continue
+
             try:
-                if not candidate.wrapper.is_visible() or not candidate.wrapper.is_enabled():
+                wrapper = candidate.wrapper
+
+                if not wrapper.is_visible() or not wrapper.is_enabled():
                     continue
-                rect = candidate.wrapper.rectangle()
-                cx, cy = (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2
-                distance = ((cx - anchor.cx) ** 2 + (cy - anchor.cy) ** 2) ** 0.5
-                # Exclude unrelated toolbar controls above the anchored section.
+
+                rect = wrapper.rectangle()
+
+                cx = (rect.left + rect.right) / 2
+                cy = (rect.top + rect.bottom) / 2
+
+                distance = (
+                    (cx - anchor.cx) ** 2 +
+                    (cy - anchor.cy) ** 2
+                ) ** 0.5
+
+                # Don't allow controls above the section label
                 if distance <= radius and cy >= anchor.top - 20:
-                    candidates.append((cy, distance, candidate.wrapper))
+                    candidates.append(
+                        (cy, distance, wrapper)
+                    )
+
             except Exception:
                 continue
+
         if not candidates:
             raise ManualReviewRequired(
-                f"No runtime Button controls were found near {anchor_names}. Run --dump-uia for calibration."
+                f"No runtime Button/Image controls were found near "
+                f"{anchor_names}. Run --dump-uia for calibration."
             )
-        candidates.sort(key=lambda item: (item[0], item[1]))
-        candidates[0][2].click_input()
 
+        # First: upper control
+        # Second: closest control
+        candidates.sort(
+            key=lambda item: (item[0], item[1])
+        )
+
+        control = candidates[0][2]
+
+        try:
+            control.click_input()
+        except Exception:
+            rect = control.rectangle()
+
+            mouse.click(
+                coords=(
+                    (rect.left + rect.right) // 2,
+                    (rect.top + rect.bottom) // 2
+                )
+            )
     def click_green_plus_near(self, anchor_names: Sequence[str], *, radius: float = 650) -> None:
         anchors = self.visual_boxes(anchor_names, exact=False)
         if not anchors:
@@ -550,6 +596,72 @@ class Controls:
                     f"Field {labels[0]} expected={value!r}, actual={actual!r}"
                 )
 
+    def click_field_button(
+        self,
+        labels: Sequence[str],
+    ) -> None:
+
+        field = self.field(
+            labels,
+            ("Edit",),
+        )
+
+        if field is None:
+            raise ManualReviewRequired(
+                f"Could not locate field for button: {list(labels)}"
+            )
+
+        field_rect = field.rectangle()
+
+        candidates = []
+
+        for candidate in self.g.descendants():
+
+            if norm(candidate.control_type) != "button":
+                continue
+
+            try:
+                wrapper = candidate.wrapper
+
+                if not wrapper.is_visible() or not wrapper.is_enabled():
+                    continue
+
+                rect = wrapper.rectangle()
+
+                # Button must be on the same row as the Edit.
+                vertical_overlap = not (
+                    rect.bottom < field_rect.top
+                    or rect.top > field_rect.bottom
+                )
+
+                # It must be immediately to the right of the field.
+                right_of_field = rect.left >= field_rect.right - 5
+
+                if not vertical_overlap or not right_of_field:
+                    continue
+
+                distance = abs(rect.left - field_rect.right)
+
+                candidates.append(
+                    (distance, wrapper)
+                )
+
+            except Exception:
+                continue
+
+        if not candidates:
+            raise ManualReviewRequired(
+                f"Could not locate dropdown button for field {list(labels)}"
+            )
+
+        candidates.sort(
+            key=lambda item: item[0]
+        )
+
+        button = candidates[0][1]
+
+        button.click_input()
+    
     def set_date(self, labels: Sequence[str], expected: date) -> None:
         ctrl = self.field(labels, ("Edit", "ComboBox"))
         assert ctrl is not None
