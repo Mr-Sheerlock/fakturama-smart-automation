@@ -210,7 +210,7 @@ class FakturamaApp:
 
     def open_new_order(self, order: OrderInput) -> None:
         before = self._tab_names()
-        self.g.click_text(["New Order"], exact=True)
+        self.g.click_text(["Create: New Order"], exact=True)
         self.g.wait_until_text("Cust.Ref", timeout=12)
         self._remember_new_tab(before, "order")
 
@@ -218,7 +218,7 @@ class FakturamaApp:
         self.order_number = self.c.read_text(["No.", "No", "Number"], optional=True)
         self.c.set_date(["Date", "Order Date"], order.order_date)
         self.c.set_text(["Cust.Ref.", "Cust.Ref", "Customer Reference"], order.external_reference)
-        self.c.choose(["Net or Gross", "Price mode", "Price type"], "Net")
+        self.c.choose_near(["Date"], "Net")
         self.c.choose(["VAT", "VAT mode"], "With VAT")
         self.checkpoint("01-new-order")
 
