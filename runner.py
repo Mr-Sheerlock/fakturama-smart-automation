@@ -52,7 +52,7 @@ class ImageToCashRunner:
                 session.require().dump_tree()
             app = FakturamaApp(session)
 
-            app.open_new_order(order)
+            # app.open_new_order(order)
             app.ensure_debtor(order.debtor)
             for item in order.items:
                 app.ensure_and_add_item(item)

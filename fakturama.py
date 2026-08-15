@@ -203,6 +203,23 @@ class FakturamaApp:
 
         return matches
 
+    def _click_ocr_row(
+        self,
+        grounder: Grounder,
+        line,
+    ) -> None:
+        from pywinauto import mouse
+
+        rect = grounder.window.rectangle()
+
+        mouse.click(
+            coords=(
+                int(rect.left + line.cx),
+                int(rect.top + line.cy),
+            )
+        )
+
+
     def _select_exact_dialog_row(
         self,
         dialog: Grounder,
@@ -290,15 +307,15 @@ class FakturamaApp:
     def open_new_order(self, order: OrderInput) -> None:
         before = self._tab_names()
         self.g.click_text(["Create: New Order"], exact=True)
-        # self.g.wait_until_text("Cust.Ref", timeout=12)
-        # self._remember_new_tab(before, "order")
+        self.g.wait_until_text("Cust.Ref", timeout=12)
+        self._remember_new_tab(before, "order")
 
-        # # Leave Fakturama's proposed document number unchanged, but capture it for verification.
-        # self.order_number = self.c.read_text(["No.", "No", "Number"], optional=True)
-        # self.c.set_date(["Date", "Order Date"], order.order_date)
-        # self.c.set_text(["Cust.Ref.", "Cust.Ref", "Customer Reference"], order.external_reference)
-        # self.c.choose_near(["Date"], "Net")
-        # self.c.choose(["VAT", "VAT mode"], "With VAT")
+        # Leave Fakturama's proposed document number unchanged, but capture it for verification.
+        self.order_number = self.c.read_text(["No.", "No", "Number"], optional=True)
+        self.c.set_date(["Date", "Order Date"], order.order_date)
+        self.c.set_text(["Cust.Ref.", "Cust.Ref", "Customer Reference"], order.external_reference)
+        self.c.choose_near(["Date"], "Net")
+        self.c.choose(["VAT", "VAT mode"], "With VAT")
         self.checkpoint("01-new-order")
 
     # ---------- Debtor ----------
@@ -326,6 +343,7 @@ class FakturamaApp:
         required = [value for value in debtor.selector_required_values() if value]
         if not self._select_exact_dialog_row(dialog, required, f"Debtor {required}"):
             dialog.click_text(["Cancel"], exact=True)
+            # payment and stuff inside here
             self._create_debtor(debtor)
             dialog = self._open_address_selector()
             self._search_dialog(dialog, debtor.company or debtor.last_name)
@@ -446,44 +464,45 @@ class FakturamaApp:
         self._remember_new_tab(before, "debtor")
 
         # Customer ID and Salutation are intentionally left at Fakturama defaults.
-        self.c.set_text(["Company"], debtor.company)
-        if debtor.first_name:
-            self.c.set_text_on_row(
-                ["First Name Last Name"],
-                0,
-                debtor.first_name,
-            )
-        if debtor.last_name:
-            self.c.set_text_on_row(
-                ["First Name Last Name"],
-                1,
-                debtor.last_name,
-            )
+        # self.c.set_text(["Company"], debtor.company)
+        # if debtor.first_name:
+        #     self.c.set_text_on_row(
+        #         ["First Name Last Name"],
+        #         0,
+        #         debtor.first_name,
+        #     )
+        # if debtor.last_name:
+        #     self.c.set_text_on_row(
+        #         ["First Name Last Name"],
+        #         1,
+        #         debtor.last_name,
+        #     )
 
 
         self.g.click_text(["Addresses"], exact=False)
-        self._fill_address(debtor.billing)
+        # self._fill_address(debtor.billing)
 
-        self._set_address_types(delivery=debtor.same_delivery_address, invoice=True)
+        # self._set_address_types(delivery=debtor.same_delivery_address, invoice=True)
 
-        if not debtor.same_delivery_address:
-            # Figure 2's address table uses the green + to add another address.
-            self.g.click_text(["+"], exact=True)
+        # if not debtor.same_delivery_address:
+        #     # Figure 2's address table uses the green + to add another address.
+        #     self.g.click_text(["+"], exact=True)
 
-            time.sleep(0.4)
-            self._fill_address(debtor.delivery_address)
-            self._set_address_types(delivery=True, invoice=False)
-            self.checkpoint("debtor-distinct-delivery-address")
+        #     time.sleep(0.4)
+        #     self._fill_address(debtor.delivery_address)
+        #     self._set_address_types(delivery=True, invoice=False)
+        #     self.checkpoint("debtor-distinct-delivery-address")
 
 
         self.g.click_text(["Miscellaneous", "Misc"], exact=False)
-        if debtor.alias:
-            self.c.set_text(["Alias name", "Alias"], debtor.alias)
-        self.c.set_text(["Discount"], "0")
-        self.c.choose(["Net or Gross"], "Net")
-
+        # if debtor.alias:
+        #     self.c.set_text(["Alias name", "Alias"], debtor.alias)
+        # self.c.set_text(["Discount"], "0")
+        # self.c.choose(["Net or Gross"], "Net")
+        
         self.g.click_text(["Payment"], exact=True)
         if not self._try_choose_payment(debtor.payment_method):
+
             self._ensure_payment_method(debtor.payment_method)
             self._return_to_debtor()
             self.g.click_text(["Payment"], exact=True)
@@ -534,8 +553,11 @@ class FakturamaApp:
         self._validate_zero_field(["Discount Days", "Discount days"])
         self._validate_zero_field(["Net Days", "Net days"])
 
+
+
     def _ensure_payment_method(self, name: str) -> None:
         mapped = PAYMENT_CODE.get(norm(name))
+
         if mapped is None:
             raise ManualReviewRequired(
                 f"Payment Method {name!r} is not one of the allowed mappings: "
@@ -543,49 +565,113 @@ class FakturamaApp:
             )
 
         self._open_data_section("terms of payment")
+
         try:
-            self.c.set_text(["Search", "Filter"], name)
+            self.c.set_text(
+                ["Search", "Filter"],
+                name,
+                verify=False,
+            )
         except ManualReviewRequired:
             pass
-        self.g.stable_text_snapshot()
-        matches = self._find_exact_rows(self.g, [name])
-        if len(matches) > 1:
-            raise ManualReviewRequired(f"Multiple exact payment methods named {name!r}")
-        if len(matches) == 1:
-            if matches[0][0] == "uia":
-                matches[0][1].click_input()
-            else:
-                from pywinauto import mouse
 
-                rect = self.g.window.rectangle()
-                line = matches[0][1]
-                mouse.click(coords=(int(rect.left + line.cx), int(rect.top + line.cy)))
+        self.g.stable_text_snapshot()
+
+        matches = self._find_exact_rows(
+            self.g,
+            [name],
+        )
+
+        
+
+        if len(matches) > 1:
+            raise ManualReviewRequired(
+                f"Multiple exact payment methods named {name!r}"
+            )
+
+        if len(matches) == 1:
+            print(f"Existing payment method {name!r} found; verifying...")
+            # print matching info 
+            print(f"Matching row text: {matches[0].text}")
+            print(f"Matching row center: ({matches[0].cx}, {matches[0].cy})")
+            self._click_ocr_row(
+                self.g,
+                matches[0],
+            )
+
             time.sleep(0.2)
+
             self._verify_existing_payment_definition(name)
             return
 
-        self.g.click_green_plus_near(["terms of payment", "Payment"], radius=700)
-        self.c.set_text(["Name"], name)
-        self.c.set_text(["Description"], name)
-        account = self.c.field(["Account"], ("Edit",), optional=True)
+
+        # No existing exact payment method -> create it
+        self.g.click_text(
+            ["Create a new term of payment"]
+        )
+
+        self.c.set_text(
+            ["Name"],
+            name,
+        )
+
+        self.c.set_text(
+            ["Description"],
+            name,
+        )
+
+        account = self.c.field(
+            ["Account"],
+            ("Edit",),
+            optional=True,
+        )
+
         if account is not None:
             try:
                 account.set_edit_text("")
             except Exception:
                 pass
-        self.c.choose(["Payment code", "Code"], mapped)
-        for labels in (["Cash discount"], ["Discount Days", "Discount days"], ["Net Days", "Net days"]):
-            self.c.set_text(labels, "0")
-        for labels in (["Text 'unpaid'", "Text unpaid"], ["Text 'deposit'", "Text deposit"], ["Text 'paid'", "Text paid"]):
-            field = self.c.field(labels, ("Edit",), optional=True)
+
+        self.c.choose(
+            ["Payment code", "Code"],
+            mapped,
+        )
+
+        for labels in (
+            ["Cash discount"],
+            ["Discount Days", "Discount days"],
+            ["Net Days", "Net days"],
+        ):
+            self.c.set_text(
+                labels,
+                "0",
+            )
+
+        for labels in (
+            ["Text 'unpaid'", "Text unpaid"],
+            ["Text 'deposit'", "Text deposit"],
+            ["Text 'paid'", "Text paid"],
+        ):
+            field = self.c.field(
+                labels,
+                ("Edit",),
+                optional=True,
+            )
+
             if field is not None:
                 try:
                     field.set_edit_text("")
                 except Exception:
                     pass
+
         # "Set as standard" intentionally untouched.
         self._click_save_once()
-        self.checkpoint("payment-method-created")
+
+        self.checkpoint(
+            "payment-method-created"
+        )
+
+
 
     def _verify_order_addresses(self, debtor: Debtor) -> None:
         text = norm(self.g.visible_text())
@@ -649,36 +735,74 @@ class FakturamaApp:
 
     def _ensure_vat(self, item: Item) -> None:
         self._open_data_section("VATs")
+
         try:
-            self.c.set_text(["Search", "Filter"], item.vat_name)
+            self.c.set_text(
+                ["Search", "Filter"],
+                item.vat_name,
+            )
         except ManualReviewRequired:
             pass
-        self.g.stable_text_snapshot()
-        matches = self._find_exact_rows(self.g, [item.vat_name])
-        if len(matches) > 1:
-            raise ManualReviewRequired(f"Multiple exact VAT rows named {item.vat_name!r}")
-        if len(matches) == 1:
-            if matches[0][0] == "uia":
-                matches[0][1].click_input()
-            else:
-                from pywinauto import mouse
 
-                rect = self.g.window.rectangle()
-                line = matches[0][1]
-                mouse.click(coords=(int(rect.left + line.cx), int(rect.top + line.cy)))
+        self.g.stable_text_snapshot()
+
+        matches = self._find_exact_rows(
+            self.g,
+            [item.vat_name],
+        )
+
+        if len(matches) > 1:
+            raise ManualReviewRequired(
+                f"Multiple exact VAT rows named {item.vat_name!r}"
+            )
+
+        # VAT already exists
+        if len(matches) == 1:
+            self._click_ocr_row(
+                self.g,
+                matches[0],
+            )
+
             time.sleep(0.2)
+
             self._verify_existing_vat(item)
             self._return_to_order()
             return
 
-        self.g.click_green_plus_near(["VATs", "VAT"], radius=700)
-        self.c.set_text(["Name"], item.vat_name)
-        self.c.set_text(["Description"], item.vat_name)
-        self.c.choose(["VAT code (E-Invoice)", "VAT code"], "S (Standard rate)")
-        self.c.set_text(["Value"], normalized_decimal_text(item.vat_percent))
-        # Standard VAT is intentionally left unchanged.
+        # VAT DOES NOT EXIST -> create it
+        self.g.click_text(
+            ["Create a new VAT"],
+            exact=False,
+        )
+
+        self.c.set_text(
+            ["Name"],
+            item.vat_name,
+        )
+
+        self.c.set_text(
+            ["Description"],
+            item.vat_name,
+        )
+
+        self.c.choose(
+            ["VAT code (E-Invoice)", "VAT code"],
+            "S (Standard rate)",
+        )
+
+        self.c.set_text(
+            ["Value"],
+            str(item.vat_percent),
+        )
+
+        # Do NOT change Standard VAT
+
         self._click_save_once()
-        self.checkpoint(f"vat-created-{normalized_decimal_text(item.vat_percent)}")
+
+        self.checkpoint(
+            "vat-created"
+        )
+
         self._return_to_order()
 
     def _create_product(self, item: Item) -> None:
