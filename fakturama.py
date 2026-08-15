@@ -525,22 +525,6 @@ class FakturamaApp:
         if numeric != 0:
             raise ManualReviewRequired(f"Existing payment definition has {labels[0]}={value!r}, expected 0")
 
-    def _verify_existing_payment_definition(self, name: str) -> None:
-        mapped = PAYMENT_CODE.get(norm(name))
-        if mapped is None:
-            raise ManualReviewRequired(f"Unsupported payment mapping for {name!r}")
-        actual_name = self.c.read_text(["Name"], optional=True)
-        description = self.c.read_text(["Description"], optional=True)
-        code = self.c.read_text(["Payment code", "Code"], optional=True)
-        if actual_name and norm(actual_name) != norm(name):
-            raise ManualReviewRequired(f"Payment name conflict: {actual_name!r}")
-        if description and norm(description) != norm(name):
-            raise ManualReviewRequired(f"Payment description conflict: {description!r}")
-        if code and norm(mapped) not in norm(code):
-            raise ManualReviewRequired(f"Payment code conflict: expected={mapped!r}, actual={code!r}")
-        self._validate_zero_field(["Cash discount"])
-        self._validate_zero_field(["Discount Days", "Discount days"])
-        self._validate_zero_field(["Net Days", "Net days"])
 
 
 
@@ -590,7 +574,6 @@ class FakturamaApp:
 
             time.sleep(0.2)
 
-            self._verify_existing_payment_definition(name)
             return
 
 
