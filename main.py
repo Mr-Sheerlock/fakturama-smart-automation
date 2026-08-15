@@ -45,7 +45,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    evidence = args.evidence_dir or Path("artifacts") / datetime.now().strftime("%Y%m%d-%H%M%S")
+    evidence = args.evidence_dir or Path("artifacts") / datetime.now().strftime(
+        "%Y%m%d-%H%M%S"
+    )
     result = ImageToCashRunner(evidence, title_regex=args.window_title_regex).run(
         args.image,
         extract_only=args.extract_only,

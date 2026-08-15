@@ -106,7 +106,7 @@ class FakturamaApp:
         time.sleep(0.35)
 
     def _click_save_once(self) -> None:
-        self.g.click_text(["Save"], exact=True)
+        self.g.click_text(["Save the current contents"], exact=True)
         time.sleep(0.3)
 
     # ---------- Row/table discovery ----------
@@ -135,71 +135,60 @@ class FakturamaApp:
         haystack = norm(text)
         return all(norm(value) in haystack for value in required if value)
 
-    def _find_exact_rows(self, grounder: Grounder, required: list[str]):
+    def _find_exact_rows(
+        self,
+        grounder: Grounder,
+        required: list[str],
+    ):
         lines = grounder.ocr_lines()
 
         if not lines:
             return []
 
-        # Dynamically determine the table/results area.
-        #
-        # Search/filter controls are above the result table.
-        # OK/Cancel controls are below it.
-        search_lines = [
-            line
-            for line in lines
-            if norm(line.text).strip(":") == "search"
-        ]
-
-        action_lines = [
-            line
-            for line in lines
-            if norm(line.text) in {"ok", "cancel"}
-        ]
-
-        top_boundary = None
-        bottom_boundary = None
-
-        if search_lines:
-            # Result rows should be below the Search label.
-            top_boundary = max(line.bottom for line in search_lines)
-
-        if action_lines:
-            # Result rows should be above OK / Cancel.
-            bottom_boundary = min(line.top for line in action_lines)
-
-        table_lines = []
+        # Find visible Search/Filter UI so we can ignore anything above it
+        # and, most importantly, never count the search query itself.
+        search_lines = []
 
         for line in lines:
-            if top_boundary is not None and line.cy <= top_boundary:
+            text = norm(line.text)
+
+            if text.startswith("search") or text.startswith("filter"):
+                search_lines.append(line)
+
+        # In Fakturama result tables, the table is underneath the Search control.
+        table_top = None
+
+        if search_lines:
+            table_top = max(line.bottom for line in search_lines)
+
+        matches = []
+
+        for line in lines:
+            text = norm(line.text).strip()
+
+            if not text:
                 continue
 
-            if bottom_boundary is not None and line.cy >= bottom_boundary:
+            # Never interpret the Search/Filter control as a data row.
+            if text.startswith("search"):
                 continue
 
-            table_lines.append(line)
+            if text.startswith("filter"):
+                continue
 
-        matches = [
-            line
-            for line in table_lines
-            if self._contains_required(line.text, required)
-        ]
+            # Dialog chrome is not a row.
+            if text in {"ok", "cancel"}:
+                continue
 
-        # Occasionally OCR may produce the same visible row twice.
-        # Prefer the clearly wider version because a real table row
-        # normally contains several columns.
-        if len(matches) > 1:
-            ranked = sorted(
-                matches,
-                key=lambda line: line.right - line.left,
-                reverse=True,
-            )
+            # If Search exists, a result row must be below it.
+            if table_top is not None and line.cy <= table_top:
+                continue
 
-            widest = ranked[0].right - ranked[0].left
-            second = ranked[1].right - ranked[1].left
-
-            if widest >= second * 1.25:
-                matches = [ranked[0]]
+            if self._contains_required(
+                line.text,
+                required,
+            ):
+                matches.append(line)
 
         return matches
 
@@ -373,7 +362,7 @@ class FakturamaApp:
             1,
             address.city,
         )
-        # country isn't text
+        # # country isn't text
         self.c.choose(["Country"], address.country)
 
 

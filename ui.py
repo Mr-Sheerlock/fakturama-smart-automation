@@ -801,28 +801,32 @@ class Controls:
             return False
         try:
             combo.select(option)
-        except Exception:
-            # Inspect list items when exposed so a unique option containing the exact
-            # master-data name (e.g. 'VAT 19% (19.0%)') can be selected safely.
-            matches = []
-            try:
-                for item in combo.descendants():
-                    text = item.window_text().strip()
-                    if norm(option) == norm(text) or norm(option) in norm(text):
-                        matches.append(text)
-            except Exception:
-                pass
-            if len(set(matches)) == 1:
+        except Exception as e:
+            try: 
+                combo.select(option+' ')
+            except:
+                matches = []
                 try:
-                    combo.select(matches[0])
+                    for item in combo.descendants():
+                        print(f"match: {item.window_text()},")
+                        print(f"with length {len(item.window_text())}")
+                        text = item.window_text().strip()
+                        if norm(option) == norm(text) or norm(option) in norm(text):
+                            matches.append(text)
                 except Exception:
+                    pass
+                if len(set(matches)) == 1:
+                    try:
+                        combo.select(matches[0])
+                    except Exception:
+                        combo.click_input()
+                        keyboard.send_keys(matches[0][0], with_spaces=True)
+                        keyboard.send_keys("{ENTER}")
+                else:
                     combo.click_input()
-                    keyboard.send_keys(matches[0], with_spaces=True)
+                    keyboard.send_keys(str(option)[0], with_spaces=True)
                     keyboard.send_keys("{ENTER}")
-            else:
-                combo.click_input()
-                keyboard.send_keys(str(option), with_spaces=True)
-                keyboard.send_keys("{ENTER}")
+
         actual = self._raw_value(combo)
         if norm(option) not in norm(actual):
             if optional:
