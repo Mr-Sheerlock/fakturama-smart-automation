@@ -37,7 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--window-title-regex",
-        default=r"(?i).*Fakturama.*",
+        default=r"Fakturama -",
         help="Regex used to find the one visible Fakturama main window",
     )
     return parser

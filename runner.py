@@ -23,7 +23,7 @@ class ImageToCashRunner:
         self,
         evidence_dir: str | Path,
         *,
-        title_regex: str = r"(?i).*Fakturama.*",
+        title_regex: str = r"*Fakturama -",
     ):
         self.evidence_dir = Path(evidence_dir)
         self.evidence_dir.mkdir(parents=True, exist_ok=True)

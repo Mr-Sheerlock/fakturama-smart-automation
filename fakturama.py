@@ -210,7 +210,7 @@ class FakturamaApp:
 
     def open_new_order(self, order: OrderInput) -> None:
         before = self._tab_names()
-        self.g.click_text(["Order"], exact=True)
+        self.g.click_text(["New Order"], exact=True)
         self.g.wait_until_text("Cust.Ref", timeout=12)
         self._remember_new_tab(before, "order")
 

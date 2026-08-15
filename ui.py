@@ -701,7 +701,7 @@ class FakturamaSession:
     def __init__(
         self,
         evidence_dir: str | Path,
-        title_re: str = r"(?i).*Fakturama.*",
+        title_re: str = r"*Fakturama -",
     ):
         self.evidence_dir = Path(evidence_dir)
         self.evidence_dir.mkdir(parents=True, exist_ok=True)
