@@ -15,9 +15,6 @@ from PIL import Image
 from pywinauto import Desktop, keyboard, mouse
 from pywinauto.base_wrapper import BaseWrapper
 
-from pywinauto import keyboard
-
-
 from errors import AutomationError, ManualReviewRequired, VerificationError
 
 
@@ -253,10 +250,10 @@ class Grounder:
             return
 
         boxes = self.visual_boxes(names, exact=exact)
-        if len(boxes) == 0:
-            # self.screenshot("ambiguous_text_click")
+        if len(boxes) != 1:
+            self.screenshot("ambiguous_text_click")
             raise ManualReviewRequired(
-                f"Could not locate visible UI text {list(names)}; Not found"
+                f"Could not uniquely locate visible UI text {list(names)}; matches={len(boxes)}"
             )
         mouse.click(coords=(int(boxes[0].cx), int(boxes[0].cy)))
 
@@ -584,7 +581,7 @@ class Controls:
         return self._raw_value(ctrl).strip()
 
     def set_text(self, labels: Sequence[str], value: str, *, verify: bool = True) -> None:
-        ctrl = self.field(labels, ("Edit", "Document"))
+        ctrl = self.field(labels, ("Edit",))
         assert ctrl is not None
         try:
             ctrl.set_edit_text(str(value))
@@ -598,21 +595,6 @@ class Controls:
                 raise VerificationError(
                     f"Field {labels[0]} expected={value!r}, actual={actual!r}"
                 )
-
-    def set_text_keyboard(self, labels: Sequence[str], value: str) -> None:
-        ctrl = self.field(
-            labels,
-            ("Document", "Edit"),
-        )
-
-        ctrl.click_input()
-
-        keyboard.send_keys("^a{BACKSPACE}")
-        keyboard.send_keys(str(value), with_spaces=True)
-
-        # Leave the field so Fakturama commits the change
-        keyboard.send_keys("{TAB}")
-
 
     def click_field_button(
         self,
@@ -679,6 +661,7 @@ class Controls:
         button = candidates[0][1]
 
         button.click_input()
+
 
     def field_on_row(
         self,
@@ -778,6 +761,7 @@ class Controls:
                     f"expected={value!r}, actual={actual!r}"
                 )
 
+
     def set_date(self, labels: Sequence[str], expected: date) -> None:
         ctrl = self.field(labels, ("Edit", "ComboBox"))
         assert ctrl is not None
@@ -817,32 +801,28 @@ class Controls:
             return False
         try:
             combo.select(option)
-        except Exception as e:
-            try: 
-                combo.select(option+' ')
-            except:
-                matches = []
+        except Exception:
+            # Inspect list items when exposed so a unique option containing the exact
+            # master-data name (e.g. 'VAT 19% (19.0%)') can be selected safely.
+            matches = []
+            try:
+                for item in combo.descendants():
+                    text = item.window_text().strip()
+                    if norm(option) == norm(text) or norm(option) in norm(text):
+                        matches.append(text)
+            except Exception:
+                pass
+            if len(set(matches)) == 1:
                 try:
-                    for item in combo.descendants():
-                        print(f"match: {item.window_text()},")
-                        print(f"with length {len(item.window_text())}")
-                        text = item.window_text().strip()
-                        if norm(option) == norm(text) or norm(option) in norm(text):
-                            matches.append(text)
+                    combo.select(matches[0])
                 except Exception:
-                    pass
-                if len(set(matches)) == 1:
-                    try:
-                        combo.select(matches[0])
-                    except Exception:
-                        combo.click_input()
-                        keyboard.send_keys(matches[0][0], with_spaces=True)
-                        keyboard.send_keys("{ENTER}")
-                else:
                     combo.click_input()
-                    keyboard.send_keys(str(option)[0], with_spaces=True)
+                    keyboard.send_keys(matches[0], with_spaces=True)
                     keyboard.send_keys("{ENTER}")
-
+            else:
+                combo.click_input()
+                keyboard.send_keys(str(option), with_spaces=True)
+                keyboard.send_keys("{ENTER}")
         actual = self._raw_value(combo)
         if norm(option) not in norm(actual):
             if optional:
@@ -975,3 +955,4 @@ def active_dialog(evidence_dir: Path, title_or_text: str, timeout: float = 10.0)
                 continue
         time.sleep(0.2)
     raise ManualReviewRequired(f"Timed out waiting for dialog containing {title_or_text!r}")
+
