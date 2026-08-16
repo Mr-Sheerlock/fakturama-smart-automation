@@ -451,7 +451,7 @@ class FakturamaApp:
         self._remember_new_tab(before, "*New Debtor")
 
         # # Customer ID and Salutation are intentionally left at Fakturama defaults.
-        self.c.set_text(["Company"], debtor.company)
+        self.c.set_text_keyboard(["Company"], debtor.company)
         if debtor.first_name:
             self.c.set_text_on_row(
                 ["First Name Last Name"],

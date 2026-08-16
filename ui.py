@@ -15,6 +15,9 @@ from PIL import Image
 from pywinauto import Desktop, keyboard, mouse
 from pywinauto.base_wrapper import BaseWrapper
 
+from pywinauto import keyboard
+
+
 from errors import AutomationError, ManualReviewRequired, VerificationError
 
 
@@ -250,11 +253,11 @@ class Grounder:
             return
 
         boxes = self.visual_boxes(names, exact=exact)
-        # if len(boxes) != 1:
-        #     self.screenshot("ambiguous_text_click")
-        #     raise ManualReviewRequired(
-        #         f"Could not uniquely locate visible UI text {list(names)}; matches={len(boxes)}"
-        #     )
+        if len(boxes) == 0:
+            # self.screenshot("ambiguous_text_click")
+            raise ManualReviewRequired(
+                f"Could not locate visible UI text {list(names)}; Not found"
+            )
         mouse.click(coords=(int(boxes[0].cx), int(boxes[0].cy)))
 
     def click_text_near(
@@ -595,6 +598,21 @@ class Controls:
                 raise VerificationError(
                     f"Field {labels[0]} expected={value!r}, actual={actual!r}"
                 )
+
+    def set_text_keyboard(self, labels: Sequence[str], value: str) -> None:
+        ctrl = self.field(
+            labels,
+            ("Document", "Edit"),
+        )
+
+        ctrl.click_input()
+
+        keyboard.send_keys("^a{BACKSPACE}")
+        keyboard.send_keys(str(value), with_spaces=True)
+
+        # Leave the field so Fakturama commits the change
+        keyboard.send_keys("{TAB}")
+
 
     def click_field_button(
         self,
