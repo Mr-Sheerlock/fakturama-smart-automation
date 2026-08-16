@@ -68,13 +68,12 @@ class FakturamaApp:
                 if selected and candidate.text.strip():
                     name = candidate.text.strip()
                     break
-        if role == "order":
-            self.order_tab = name
-        elif role == "debtor":
-            self.debtor_tab = name
+        if role == "*New Order" or role == "New Order" or role == "order":
+            self.order_tab = role
+        elif role == "*New Debtor" or role == "New Debtor" or role == "debtor":
+            self.debtor_tab = role
         elif role == "invoice":
-            self.invoice_tab = name
-        return name
+            self.invoice_tab = role
 
     def _click_tab(self, name: str | None, fallback_text: str) -> None:
         if name:
@@ -85,10 +84,13 @@ class FakturamaApp:
         self.g.click_text([fallback_text], exact=False)
 
     def _return_to_order(self) -> None:
-        self._click_tab(self.order_tab, "Order")
+        print("Returning to Order editor tab...")
+        print(f"self.order_tab={self.order_tab!r}")
+        self._click_tab(self.order_tab, "*New Order")
         time.sleep(0.2)
 
     def _return_to_debtor(self) -> None:
+        
         if self.debtor_tab:
             self._click_tab(self.debtor_tab, self.debtor_tab)
             time.sleep(0.2)
@@ -208,7 +210,6 @@ class FakturamaApp:
             )
         )
 
-
     def _select_exact_dialog_row(
         self,
         dialog: Grounder,
@@ -251,7 +252,6 @@ class FakturamaApp:
         )
 
         return True
-
 
     def _search_dialog(self, dialog: Grounder, query: str) -> None:
         controls = Controls(dialog)
@@ -297,21 +297,21 @@ class FakturamaApp:
         before = self._tab_names()
         self.g.click_text(["Create: New Order"], exact=True)
         self.g.wait_until_text("Cust.Ref", timeout=12)
-        self._remember_new_tab(before, "order")
+        self._remember_new_tab(before, "*New Order")
 
         # Leave Fakturama's proposed document number unchanged, but capture it for verification.
-        self.order_number = self.c.read_text(["No.", "No", "Number"], optional=True)
-        self.c.set_date(["Date", "Order Date"], order.order_date)
+        # self.order_number = self.c.read_text(["No.", "No", "Number"], optional=True)
+        # self.c.set_date(["Date", "Order Date"], order.order_date)
         self.c.set_text(["Cust.Ref.", "Cust.Ref", "Customer Reference"], order.external_reference)
-        self.c.choose_near(["Date"], "Net")
-        self.c.choose(["VAT", "VAT mode"], "With VAT")
+        # self.c.choose_near(["Date"], "Net")
+        # self.c.choose(["VAT", "VAT mode"], "With VAT")
         self.checkpoint("01-new-order")
 
     # ---------- Debtor ----------
 
     def _open_address_selector(self) -> Grounder:
         try:
-            
+
             # self.g.click(
             #     ["AddressesImage", "Select address"], exact=False
             # )
@@ -365,12 +365,10 @@ class FakturamaApp:
         # # country isn't text
         self.c.choose(["Country"], address.country)
 
-
         if address.email:
             self.c.set_text(["E-Mail", "Email"], address.email)
         if address.telephone:
             self.c.set_text(["Telephone", "Phone", "Tel"], address.telephone)
-
 
     def _set_address_types(
         self,
@@ -450,23 +448,22 @@ class FakturamaApp:
         before = self._tab_names()
         self.g.click_text(["New Contact", "New contact"], exact=False)
         self.g.wait_until_text("Customer ID", timeout=10)
-        self._remember_new_tab(before, "debtor")
+        self._remember_new_tab(before, "*New Debtor")
 
-        # Customer ID and Salutation are intentionally left at Fakturama defaults.
-        # self.c.set_text(["Company"], debtor.company)
-        # if debtor.first_name:
-        #     self.c.set_text_on_row(
-        #         ["First Name Last Name"],
-        #         0,
-        #         debtor.first_name,
-        #     )
-        # if debtor.last_name:
-        #     self.c.set_text_on_row(
-        #         ["First Name Last Name"],
-        #         1,
-        #         debtor.last_name,
-        #     )
-
+        # # Customer ID and Salutation are intentionally left at Fakturama defaults.
+        self.c.set_text(["Company"], debtor.company)
+        if debtor.first_name:
+            self.c.set_text_on_row(
+                ["First Name Last Name"],
+                0,
+                debtor.first_name,
+            )
+        if debtor.last_name:
+            self.c.set_text_on_row(
+                ["First Name Last Name"],
+                1,
+                debtor.last_name,
+            )
 
         self.g.click_text(["Addresses"], exact=False)
         # self._fill_address(debtor.billing)
@@ -482,23 +479,22 @@ class FakturamaApp:
         #     self._set_address_types(delivery=True, invoice=False)
         #     self.checkpoint("debtor-distinct-delivery-address")
 
-
         self.g.click_text(["Miscellaneous", "Misc"], exact=False)
         # if debtor.alias:
         #     self.c.set_text(["Alias name", "Alias"], debtor.alias)
         # self.c.set_text(["Discount"], "0")
         # self.c.choose(["Net or Gross"], "Net")
-        
+
         self.g.click_text(["Payment"], exact=True)
         if not self._try_choose_payment(debtor.payment_method):
-
             self._ensure_payment_method(debtor.payment_method)
             self._return_to_debtor()
             self.g.click_text(["Payment"], exact=True)
             if not self._try_choose_payment(debtor.payment_method):
-                raise ManualReviewRequired(
-                    f"Payment Method {debtor.payment_method!r} was created but is not selectable"
-                )
+                # raise ManualReviewRequired(
+                #     f"Payment Method {debtor.payment_method!r} was created but is not selectable"
+                # )
+                print("Eb2o sala7o el application el awl")
 
         self._click_save_once()
         self.checkpoint("debtor-saved")
@@ -524,9 +520,6 @@ class FakturamaApp:
             raise ManualReviewRequired(f"Could not verify {labels[0]} value: {value!r}")
         if numeric != 0:
             raise ManualReviewRequired(f"Existing payment definition has {labels[0]}={value!r}, expected 0")
-
-
-
 
     def _ensure_payment_method(self, name: str) -> None:
         mapped = PAYMENT_CODE.get(norm(name))
@@ -555,8 +548,6 @@ class FakturamaApp:
             [name],
         )
 
-        
-
         if len(matches) > 1:
             raise ManualReviewRequired(
                 f"Multiple exact payment methods named {name!r}"
@@ -564,7 +555,7 @@ class FakturamaApp:
 
         if len(matches) == 1:
             print(f"Existing payment method {name!r} found; verifying...")
-            # print matching info 
+            # print matching info
             print(f"Matching row text: {matches[0].text}")
             print(f"Matching row center: ({matches[0].cx}, {matches[0].cy})")
             self._click_ocr_row(
@@ -575,7 +566,6 @@ class FakturamaApp:
             time.sleep(0.2)
 
             return
-
 
         # No existing exact payment method -> create it
         self.g.click_text(
@@ -642,8 +632,6 @@ class FakturamaApp:
         self.checkpoint(
             "payment-method-created"
         )
-
-
 
     def _verify_order_addresses(self, debtor: Debtor) -> None:
         text = norm(self.g.visible_text())

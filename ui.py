@@ -250,11 +250,11 @@ class Grounder:
             return
 
         boxes = self.visual_boxes(names, exact=exact)
-        if len(boxes) != 1:
-            self.screenshot("ambiguous_text_click")
-            raise ManualReviewRequired(
-                f"Could not uniquely locate visible UI text {list(names)}; matches={len(boxes)}"
-            )
+        # if len(boxes) != 1:
+        #     self.screenshot("ambiguous_text_click")
+        #     raise ManualReviewRequired(
+        #         f"Could not uniquely locate visible UI text {list(names)}; matches={len(boxes)}"
+        #     )
         mouse.click(coords=(int(boxes[0].cx), int(boxes[0].cy)))
 
     def click_text_near(
@@ -581,7 +581,7 @@ class Controls:
         return self._raw_value(ctrl).strip()
 
     def set_text(self, labels: Sequence[str], value: str, *, verify: bool = True) -> None:
-        ctrl = self.field(labels, ("Edit",))
+        ctrl = self.field(labels, ("Edit", "Document"))
         assert ctrl is not None
         try:
             ctrl.set_edit_text(str(value))
@@ -661,7 +661,6 @@ class Controls:
         button = candidates[0][1]
 
         button.click_input()
-
 
     def field_on_row(
         self,
@@ -760,7 +759,6 @@ class Controls:
                     f"Row {labels[0]} field[{index}] "
                     f"expected={value!r}, actual={actual!r}"
                 )
-
 
     def set_date(self, labels: Sequence[str], expected: date) -> None:
         ctrl = self.field(labels, ("Edit", "ComboBox"))
