@@ -1,0 +1,2 @@
+NO row-like elements with exposed text found.
+This suggests the region is custom-painted and NOT exposing row/cell values via UIA -> plan for OCR/vision fallback here.
