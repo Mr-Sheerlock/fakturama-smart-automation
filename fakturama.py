@@ -674,11 +674,11 @@ class FakturamaApp:
         self._remember_new_tab(before, "*New Order")
 
         # Leave Fakturama's proposed document number unchanged, but capture it for verification.
-        # self.order_number = self.c.read_text(["No.", "No", "Number"], optional=True)
-        # self.c.set_date(["Date", "Order Date"], order.order_date)
+        self.order_number = self.c.read_text(["No.", "No", "Number"], optional=True)
+        self.c.set_date(["Date", "Order Date"], order.order_date)
         self.c.set_text(["Cust.Ref.", "Cust.Ref", "Customer Reference"], order.external_reference)
-        # self.c.choose_near(["Date"], "Net")
-        # self.c.choose(["VAT", "VAT mode"], "With VAT")
+        self.c.choose_near(["Date"], "Net")
+        self.c.choose(["VAT", "VAT mode"], "With VAT")
         self.checkpoint("01-new-order")
 
     # ---------- Debtor ----------
@@ -686,9 +686,6 @@ class FakturamaApp:
     def _open_address_selector(self) -> Grounder:
         try:
 
-            # self.g.click(
-            #     ["AddressesImage", "Select address"], exact=False
-            # )
             self.g.click_topmost_button_near(
                     ["Addresses"],
                     radius=120
@@ -704,7 +701,7 @@ class FakturamaApp:
         dialog = self._open_address_selector()
         print("Searching for existing Debtor...")
         self._search_dialog(dialog, debtor.company or debtor.last_name)
-        required = [value for value in debtor.selector_required_values() if value]
+        # required = [value for value in debtor.selector_required_values() if value]
         if not self._select_exact_address_row(dialog, debtor,):
             dialog.click_text(["Cancel"], exact=True)
             # payment and stuff inside here
@@ -842,24 +839,24 @@ class FakturamaApp:
             )
 
         self.g.click_text(["Addresses"], exact=False)
-        # self._fill_address(debtor.billing)
+        self._fill_address(debtor.billing)
 
-        # self._set_address_types(delivery=debtor.same_delivery_address, invoice=True)
+        self._set_address_types(delivery=debtor.same_delivery_address, invoice=True)
 
-        # if not debtor.same_delivery_address:
-        #     # Figure 2's address table uses the green + to add another address.
-        #     self.g.click_text(["+"], exact=True)
+        if not debtor.same_delivery_address:
+            # Figure 2's address table uses the green + to add another address.
+            self.g.click_text(["+"], exact=True)
 
-        #     time.sleep(0.4)
-        #     self._fill_address(debtor.delivery_address)
-        #     self._set_address_types(delivery=True, invoice=False)
-        #     self.checkpoint("debtor-distinct-delivery-address")
+            time.sleep(0.4)
+            self._fill_address(debtor.delivery_address)
+            self._set_address_types(delivery=True, invoice=False)
+            self.checkpoint("debtor-distinct-delivery-address")
 
         self.g.click_text(["Miscellaneous", "Misc"], exact=False)
-        # if debtor.alias:
-        #     self.c.set_text(["Alias name", "Alias"], debtor.alias)
-        # self.c.set_text(["Discount"], "0")
-        # self.c.choose(["Net or Gross"], "Net")
+        if debtor.alias:
+            self.c.set_text(["Alias name", "Alias"], debtor.alias)
+        self.c.set_text(["Discount"], "0")
+        self.c.choose(["Net or Gross"], "Net")
 
         self.g.click_text(["Payment"], exact=True)
         if not self._try_choose_payment(debtor.payment_method):
