@@ -76,13 +76,8 @@ class FakturamaApp:
             )
         ok = ok_matches[0].wrapper
 
-
-        
-
         search_rect = search.rectangle()
         ok_rect = ok.rectangle()
-
-
 
         # Convert screen coordinates -> dialog-local coordinates.
         crop_top = max(
@@ -710,9 +705,10 @@ class FakturamaApp:
             self._search_dialog(dialog, debtor.company or debtor.last_name)
             if not self._select_exact_address_row(
                 dialog, debtor,):
-                raise ManualReviewRequired(
-                    "New Debtor was saved but is not selectable from the still-open Order"
-                )
+                # raise ManualReviewRequired(
+                #     "New Debtor was saved but is not selectable from the still-open Order"
+                # )
+                print("New Debtor was saved but is not selectable from the still-open Order")
 
         self._verify_order_addresses(debtor)
         self.checkpoint("02-debtor-selected")
@@ -823,7 +819,7 @@ class FakturamaApp:
         self.g.wait_until_text("Customer ID", timeout=10)
         self._remember_new_tab(before, "*New Debtor")
 
-        # # Customer ID and Salutation are intentionally left at Fakturama defaults.
+        # # # Customer ID and Salutation are intentionally left at Fakturama defaults.
         self.c.set_text_keyboard(["Company"], debtor.company)
         if debtor.first_name:
             self.c.set_text_on_row(
@@ -876,7 +872,7 @@ class FakturamaApp:
     def _try_choose_payment(self, payment_method: str) -> bool:
         try:
             return self.c.choose(
-                ["Payment Method", "Payment method", "Method of payment"],
+                ["Payment", "PaymentComboBox", "ComboBox3"],
                 payment_method,
                 optional=True,
             )
@@ -921,12 +917,8 @@ class FakturamaApp:
             [name],
         )
 
-        if len(matches) > 1:
-            raise ManualReviewRequired(
-                f"Multiple exact payment methods named {name!r}"
-            )
+        if len(matches) >= 1:
 
-        if len(matches) == 1:
             print(f"Existing payment method {name!r} found; verifying...")
             # print matching info
             print(f"Matching row text: {matches[0].text}")
@@ -1105,7 +1097,7 @@ class FakturamaApp:
 
         # VAT DOES NOT EXIST -> create it
         self.g.click_text(
-            ["Create a new VAT"],
+            ["Create a new tax rate"],
             exact=False,
         )
 

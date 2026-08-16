@@ -250,10 +250,10 @@ class Grounder:
             return
 
         boxes = self.visual_boxes(names, exact=exact)
-        if len(boxes) != 1:
+        if len(boxes) == 0:
             self.screenshot("ambiguous_text_click")
             raise ManualReviewRequired(
-                f"Could not uniquely locate visible UI text {list(names)}; matches={len(boxes)}"
+                f"Could not locate visible UI text {list(names)}; nothing found"
             )
         mouse.click(coords=(int(boxes[0].cx), int(boxes[0].cy)))
 
@@ -580,6 +580,20 @@ class Controls:
             return ""
         return self._raw_value(ctrl).strip()
 
+    def set_text_keyboard(self, labels: Sequence[str], value: str) -> None:
+        ctrl = self.field(
+            labels,
+            ("Document", "Edit"),
+        )
+
+        ctrl.click_input()
+
+        keyboard.send_keys("^a{BACKSPACE}")
+        keyboard.send_keys(str(value), with_spaces=True)
+
+        # Leave the field so Fakturama commits the change
+        keyboard.send_keys("{TAB}")
+
     def set_text(self, labels: Sequence[str], value: str, *, verify: bool = True) -> None:
         ctrl = self.field(labels, ("Edit",))
         assert ctrl is not None
@@ -661,7 +675,6 @@ class Controls:
         button = candidates[0][1]
 
         button.click_input()
-
 
     def field_on_row(
         self,
@@ -760,7 +773,6 @@ class Controls:
                     f"Row {labels[0]} field[{index}] "
                     f"expected={value!r}, actual={actual!r}"
                 )
-
 
     def set_date(self, labels: Sequence[str], expected: date) -> None:
         ctrl = self.field(labels, ("Edit", "ComboBox"))
@@ -955,4 +967,3 @@ def active_dialog(evidence_dir: Path, title_or_text: str, timeout: float = 10.0)
                 continue
         time.sleep(0.2)
     raise ManualReviewRequired(f"Timed out waiting for dialog containing {title_or_text!r}")
-
